@@ -32,3 +32,8 @@ Thumbs.db
 
 # Misc
 .vscode/
+.idea/
+.cursor/
+.cursorrules
+.editorconfig
+
