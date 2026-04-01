@@ -1,0 +1,101 @@
+{
+  "info": {
+    "name": "Aptech Task Manager API",
+    "description": "Full REST API mapping endpoints covering Users, Registration, JWT cycles, Role-based constraints onto Projects/Tasks, and Redis-powered specific Background CSV Export triggers.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Register User",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"name\": \"Test User\",\n    \"email\": \"test@test.com\",\n    \"password\": \"password123\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/auth/register", "host": ["{{baseUrl}}"], "path": ["api", "auth", "register"] }
+          }
+        },
+        {
+          "name": "Login User",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"email\": \"test@test.com\",\n    \"password\": \"password123\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/auth/login", "host": ["{{baseUrl}}"], "path": ["api", "auth", "login"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Projects",
+      "item": [
+        {
+          "name": "Get User Projects",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "url": { "raw": "{{baseUrl}}/api/projects", "host": ["{{baseUrl}}"], "path": ["api", "projects"] }
+          }
+        },
+        {
+          "name": "Create Project",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"name\": \"Q4 Plan\",\n    \"description\": \"Execution matrix\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/projects", "host": ["{{baseUrl}}"], "path": ["api", "projects"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Exports",
+      "item": [
+        {
+          "name": "Trigger Export",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "url": { "raw": "{{baseUrl}}/api/projects/{{projectId}}/export", "host": ["{{baseUrl}}"], "path": ["api", "projects", "{{projectId}}", "export"] }
+          }
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:4000"
+    },
+    {
+      "key": "accessToken",
+      "value": "YOUR_TOKEN_HERE"
+    },
+    {
+      "key": "projectId",
+      "value": "UUID_HERE"
+    }
+  ]
+}
