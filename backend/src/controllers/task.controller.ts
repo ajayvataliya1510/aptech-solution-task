@@ -42,7 +42,7 @@ const verifyProjectAccess = async (projectId: string, userId: string, requireOwn
   if (!project) throw new AppError(404, 'NOT_FOUND', 'Project not found');
 
   const isOwner = project.owner_id === userId;
-  const isMember = project.members.some((m: any) => m.user_id === userId);
+  const isMember = project.members.some((m: { user_id: string }) => m.user_id === userId);
 
   if (requireOwner && !isOwner) {
     throw new AppError(403, 'FORBIDDEN', 'Only the project owner can perform this action');
@@ -63,7 +63,7 @@ export const getTasks = async (req: Request, res: Response, next: NextFunction) 
     const pageNum = parseInt(page);
     const limitNum = Math.min(parseInt(limit), 50);
 
-    const where: any = {};
+    const where: Record<string, unknown> = {};
     if (project_id) {
        await verifyProjectAccess(project_id, userId);
        where.project_id = project_id;
@@ -134,13 +134,27 @@ export const createTask = async (req: Request, res: Response, next: NextFunction
 export const updateTask = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const userId = req.user!.id;
-    const taskId = req.params.id;
+    const taskId = req.params.id as string;
+    
+    console.log(`[PATCH] Updating task ${taskId} by user ${userId}. Body:`, JSON.stringify(req.body));
+    
     const body = updateTaskSchema.parse(req.body);
 
     const task = await prisma.task.findUnique({ where: { id: taskId } });
     if (!task) throw new AppError(404, 'NOT_FOUND', 'Task not found');
 
     await verifyProjectAccess(task.project_id, userId);
+
+    // Robust date parsing to avoid "Invalid Date" Prisma crashes
+    let finalDueDate: Date | null | undefined = undefined;
+    if (body.due_date === null) {
+      finalDueDate = null;
+    } else if (body.due_date) {
+      const parsedDate = new Date(body.due_date);
+      if (!isNaN(parsedDate.getTime())) {
+        finalDueDate = parsedDate;
+      }
+    }
 
     const updatedTask = await prisma.task.update({
       where: { id: taskId },
@@ -150,7 +164,7 @@ export const updateTask = async (req: Request, res: Response, next: NextFunction
         status: body.status,
         priority: body.priority,
         assigned_to: body.assigned_to,
-        due_date: body.due_date ? new Date(body.due_date) : body.due_date === null ? null : undefined,
+        due_date: finalDueDate,
       }
     });
 
@@ -158,6 +172,7 @@ export const updateTask = async (req: Request, res: Response, next: NextFunction
 
     res.status(200).json(successResponse(updatedTask));
   } catch (error) {
+    console.error(`[PATCH Error] Failed to update task ${req.params.id}:`, error);
     next(error);
   }
 };
@@ -165,7 +180,7 @@ export const updateTask = async (req: Request, res: Response, next: NextFunction
 export const deleteTask = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const userId = req.user!.id;
-    const taskId = req.params.id;
+    const taskId = req.params.id as string;
 
     const task = await prisma.task.findUnique({ where: { id: taskId } });
     if (!task) throw new AppError(404, 'NOT_FOUND', 'Task not found');

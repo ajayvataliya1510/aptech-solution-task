@@ -14,7 +14,8 @@ export const errorHandler = (
   }
 
   if (err instanceof ZodError) {
-    const message = err.errors.map(e => `${e.path.join('.')}: ${e.message}`).join(', ');
+    const zErr = err as unknown as { errors: Array<{ path: string[]; message: string }> };
+    const message = zErr.errors.map(e => `${e.path.join('.')}: ${e.message}`).join(', ');
     return res.status(400).json(errorResponse('VALIDATION_ERROR', message));
   }
 

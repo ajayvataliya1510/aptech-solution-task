@@ -110,7 +110,7 @@ export const createProject = async (req: Request, res: Response, next: NextFunct
 export const getProjectDetails = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const userId = req.user!.id;
-    const projectId = req.params.id;
+    const projectId = req.params.id as string;
 
     const cacheKey = `project:${projectId}`;
     const cachedData = await redis.get(cacheKey);
@@ -118,7 +118,7 @@ export const getProjectDetails = async (req: Request, res: Response, next: NextF
     if (cachedData) {
       const data = JSON.parse(cachedData);
       // Validate RBAC briefly before returning cache
-      const isAllowed = data.owner_id === userId || data.members.some((m: any) => m.user_id === userId);
+      const isAllowed = data.owner_id === userId || data.members.some((m: { user_id: string }) => m.user_id === userId);
       if (!isAllowed) {
         throw new AppError(403, 'FORBIDDEN', 'You do not have access to this project');
       }
@@ -138,7 +138,7 @@ export const getProjectDetails = async (req: Request, res: Response, next: NextF
         throw new AppError(404, 'NOT_FOUND', 'Project not found');
     }
 
-    const isAllowed = project.owner_id === userId || project.members.some((m: any) => m.user_id === userId);
+    const isAllowed = project.owner_id === userId || project.members.some((m: { user_id: string }) => m.user_id === userId);
     if (!isAllowed) {
         throw new AppError(403, 'FORBIDDEN', 'You do not have access to this project');
     }
@@ -155,7 +155,7 @@ export const getProjectDetails = async (req: Request, res: Response, next: NextF
 export const addProjectMember = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const userId = req.user!.id;
-    const projectId = req.params.id;
+    const projectId = req.params.id as string;
     const { email } = addMemberSchema.parse(req.body);
 
     const project = await prisma.project.findUnique({ where: { id: projectId } });
@@ -202,8 +202,8 @@ export const addProjectMember = async (req: Request, res: Response, next: NextFu
 export const removeProjectMember = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const userId = req.user!.id;
-    const projectId = req.params.id;
-    const memberIdToRemove = req.params.userId;
+    const projectId = req.params.id as string;
+    const memberIdToRemove = req.params.userId as string;
 
     const project = await prisma.project.findUnique({ where: { id: projectId } });
     if (!project) throw new AppError(404, 'NOT_FOUND', 'Project not found');

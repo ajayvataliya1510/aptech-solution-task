@@ -91,9 +91,9 @@ export const refresh = async (req: Request, res: Response, next: NextFunction) =
   try {
     const { refreshToken } = refreshSchema.parse(req.body);
 
-    let payload: any;
+    let payload: jwt.JwtPayload;
     try {
-      payload = jwt.verify(refreshToken, env.JWT_REFRESH_SECRET);
+      payload = jwt.verify(refreshToken, env.JWT_REFRESH_SECRET) as jwt.JwtPayload;
     } catch (e) {
       throw new AppError(401, 'UNAUTHORIZED', 'Invalid or expired refresh token.');
     }
@@ -124,7 +124,7 @@ export const logout = async (req: Request, res: Response, next: NextFunction) =>
     const { refreshToken } = refreshSchema.parse(req.body);
 
     try {
-      const payload: any = jwt.verify(refreshToken, env.JWT_REFRESH_SECRET);
+      const payload = jwt.verify(refreshToken, env.JWT_REFRESH_SECRET) as jwt.JwtPayload;
       await redis.del(`refresh_token:${payload.id}:${refreshToken}`);
     } catch (e) {
        // Token invalid or expired, just ignore because we want it dropped anyway

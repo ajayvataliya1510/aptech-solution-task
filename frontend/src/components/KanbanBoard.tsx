@@ -1,6 +1,6 @@
-'use client';
 
-import React, { useState, useEffect } from 'react';
+
+import { useState, useEffect } from 'react';
 import { 
   DndContext, 
   DragOverlay, 
@@ -10,17 +10,20 @@ import {
   useSensor, 
   useSensors, 
   DragStartEvent, 
-  DragEndEvent 
+  DragEndEvent,
+  useDroppable
 } from '@dnd-kit/core';
-import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
-import { Task, TaskStatus } from '@/types/api';
+import { SortableContext, rectSortingStrategy } from '@dnd-kit/sortable';
+import { Task, TaskStatus, Project } from '@/types/api';
 import { TaskCard } from './TaskCard';
 import { useUpdateTask } from '@/hooks/useData';
 import { useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
+import { EditTaskModal } from './EditTaskModal';
 
 interface Props {
   projectId: string;
+  project: Project;
   tasks: Task[];
 }
 
@@ -30,30 +33,25 @@ const COLUMNS: { id: TaskStatus; title: string }[] = [
   { id: 'done', title: 'Done' }
 ];
 
-export const KanbanBoard = ({ projectId, tasks: initialTasks }: Props) => {
+export const KanbanBoard = ({ projectId, project, tasks: initialTasks }: Props) => {
   const [tasks, setTasks] = useState<Task[]>(initialTasks);
   const [activeTask, setActiveTask] = useState<Task | null>(null);
+  const [editingTask, setEditingTask] = useState<Task | null>(null);
   
   const updateMutation = useUpdateTask();
   const queryClient = useQueryClient();
 
-  // Sync prop changes (when sorting/filters update from above)
+  // Sync prop changes
   useEffect(() => {
     setTasks(initialTasks);
   }, [initialTasks]);
 
   const sensors = useSensors(
-    useSensor(PointerSensor, {
-      activationConstraint: {
-        distance: 5, // Requires minimum 5px movement before drag activates giving room for clicks
-      },
-    }),
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
     useSensor(KeyboardSensor)
   );
 
-  const getTasksByStatus = (status: TaskStatus) => {
-    return tasks.filter(task => task.status === status);
-  };
+  const getTasksByStatus = (status: TaskStatus) => tasks.filter(t => t.status === status);
 
   const handleDragStart = (event: DragStartEvent) => {
     const { active } = event;
@@ -67,88 +65,118 @@ export const KanbanBoard = ({ projectId, tasks: initialTasks }: Props) => {
 
     if (!over) return;
 
-    const activeId = active.id;
-    const overId = over.id;
+    const activeId = active.id as string;
+    const overId = over.id as string;
 
-    if (activeId === overId) return;
+    const activeTask = tasks.find(t => t.id === activeId);
+    if (!activeTask) return;
 
-    // Find the task we are dragging
-    const activeTaskIndex = tasks.findIndex(t => t.id === activeId);
-    let newStatus = tasks[activeTaskIndex].status;
-
-    // Figure out the new status. Either we dragged over a column, or over another task
-    const isOverColumn = COLUMNS.some(col => col.id === overId);
-    if (isOverColumn) {
+    // Determine new status
+    let newStatus: TaskStatus = activeTask.status;
+    const isColumn = COLUMNS.some(c => c.id === overId);
+    
+    if (isColumn) {
       newStatus = overId as TaskStatus;
     } else {
       const overTask = tasks.find(t => t.id === overId);
-      if (overTask) {
-        newStatus = overTask.status;
-      }
+      if (overTask) newStatus = overTask.status;
     }
 
-    // Attempt the Optimistic Update
-    if (tasks[activeTaskIndex].status !== newStatus) {
+    if (activeTask.status !== newStatus || activeId !== overId) {
        const originalTasks = [...tasks];
        const updatedTasks = [...tasks];
-       updatedTasks[activeTaskIndex] = { ...updatedTasks[activeTaskIndex], status: newStatus };
+       const activeIndex = updatedTasks.findIndex(t => t.id === activeId);
        
-       // Update Local Component State
+       // Update locally
+       updatedTasks[activeIndex] = { ...updatedTasks[activeIndex], status: newStatus };
        setTasks(updatedTasks);
-       // Update React Query Cache Optimistically
        queryClient.setQueryData(['tasks', projectId, {}], updatedTasks);
 
        try {
-         await updateMutation.mutateAsync({ id: activeId as string, project_id: projectId, status: newStatus });
+         await updateMutation.mutateAsync({ id: activeId, project_id: projectId, status: newStatus });
        } catch (error) {
-         // Rollback on failure
          setTasks(originalTasks);
          queryClient.setQueryData(['tasks', projectId, {}], originalTasks);
-         toast.error("Failed to update task status. Rolling back.");
+         toast.error("Failed to move task.");
        }
     }
   };
 
   return (
-    <DndContext 
-      sensors={sensors} 
-      collisionDetection={closestCorners} 
-      onDragStart={handleDragStart}
-      onDragEnd={handleDragEnd}
-    >
-      <div className="flex flex-col lg:flex-row gap-6 items-start h-full">
-        {COLUMNS.map(column => {
-          const columnTasks = getTasksByStatus(column.id);
-
-          return (
-            <div 
+    <>
+      <DndContext 
+        sensors={sensors} 
+        collisionDetection={closestCorners} 
+        onDragStart={handleDragStart}
+        onDragEnd={handleDragEnd}
+      >
+        <div className="flex flex-col lg:flex-row gap-6 items-start h-full min-h-[600px] pb-10">
+          {COLUMNS.map(column => (
+            <KanbanColumn 
               key={column.id} 
-              className="flex-1 min-w-[280px] bg-gray-100 rounded-xl p-4 flex flex-col h-full hidden-scrollbar shadow-inner border border-gray-200"
-            >
-               <div className="flex items-center justify-between mb-4 px-1">
-                 <h2 className="font-bold text-gray-700 capitalize flex items-center gap-2">
-                   {column.title}
-                   <span className="bg-gray-200 text-gray-600 text-xs px-2 py-0.5 rounded-full">
-                     {columnTasks.length}
-                   </span>
-                 </h2>
-               </div>
+              column={column} 
+              tasks={getTasksByStatus(column.id)} 
+              onTaskClick={setEditingTask}
+            />
+          ))}
+        </div>
 
-               <div className="flex-1 flex flex-col gap-3 min-h-[150px]">
-                 <SortableContext items={columnTasks.map(t => t.id)} strategy={verticalListSortingStrategy}>
-                   {columnTasks.map(task => (
-                     <TaskCard key={task.id} task={task} />
-                   ))}
-                 </SortableContext>
-               </div>
+        <DragOverlay>
+          {activeTask ? (
+            <div className="rotate-2 scale-105 transition-transform">
+              <TaskCard task={activeTask} />
             </div>
-          );
-        })}
+          ) : null}
+        </DragOverlay>
+      </DndContext>
+
+      {editingTask && (
+        <EditTaskModal 
+          projectId={projectId}
+          project={project}
+          task={editingTask}
+          isOpen={!!editingTask}
+          onClose={() => setEditingTask(null)}
+        />
+      )}
+    </>
+  );
+};
+
+interface ColumnProps {
+  column: { id: TaskStatus; title: string };
+  tasks: Task[];
+  onTaskClick: (task: Task) => void;
+}
+
+const KanbanColumn = ({ column, tasks, onTaskClick }: ColumnProps) => {
+  const { setNodeRef, isOver } = useDroppable({
+    id: column.id,
+  });
+
+  return (
+    <div 
+      ref={setNodeRef}
+      className={`flex-1 min-w-[320px] rounded-3xl p-5 flex flex-col h-full border transition-all duration-200 ${
+        isOver ? 'bg-indigo-50/50 border-indigo-300 ring-2 ring-indigo-200' : 'bg-slate-200/40 border-slate-200/60'
+      } backdrop-blur-md shadow-sm`}
+    >
+      <div className="flex items-center justify-between mb-5 px-2">
+        <h2 className="font-bold text-slate-800 tracking-tight flex items-center gap-2 text-lg">
+          {column.title}
+          <span className="bg-slate-300/50 text-slate-700 text-xs px-2.5 py-0.5 rounded-full font-semibold border border-slate-300">
+            {tasks.length}
+          </span>
+        </h2>
       </div>
 
-      <DragOverlay>
-        {activeTask ? <TaskCard task={activeTask} /> : null}
-      </DragOverlay>
-    </DndContext>
+      <div className="flex-1 flex flex-col gap-4 min-h-[200px]">
+        <SortableContext items={tasks.map(t => t.id)} strategy={rectSortingStrategy}>
+          {tasks.map(task => (
+            <TaskCard key={task.id} task={task} onClick={() => onTaskClick(task)} />
+          ))}
+        </SortableContext>
+      </div>
+    </div>
   );
 };

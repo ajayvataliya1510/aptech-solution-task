@@ -1,7 +1,7 @@
 import axios from 'axios';
 import { AuthResponse, ApiResponse } from '../types/api';
 
-export const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api';
+export const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000/api';
 
 const api = axios.create({
   baseURL: API_URL,
@@ -25,7 +25,13 @@ api.interceptors.request.use(
 );
 
 api.interceptors.response.use(
-  (response) => response.data,
+  (response) => {
+    // If the backend returns success: false with 200 OK, treat it as an error
+    if (response.data && response.data.success === false) {
+      return Promise.reject(response.data.error || { message: 'Unknown error' });
+    }
+    return response.data;
+  },
   async (error) => {
     const originalRequest = error.config;
     

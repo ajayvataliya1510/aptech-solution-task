@@ -10,7 +10,7 @@ const exportQueue = new Queue('ExportQueue', { connection: { url: env.REDIS_URL 
 export const triggerExport = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const userId = req.user!.id;
-    const projectId = req.params.id;
+    const projectId = req.params.id as string;
 
     const project = await prisma.project.findUnique({
       where: { id: projectId },
@@ -49,7 +49,7 @@ export const triggerExport = async (req: Request, res: Response, next: NextFunct
 export const getExportStatus = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const userId = req.user!.id;
-    const exportId = req.params.id;
+    const exportId = req.params.id as string;
 
     const exportRecord = await prisma.export.findUnique({ where: { id: exportId } });
 

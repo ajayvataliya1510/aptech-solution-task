@@ -1,4 +1,4 @@
-export const successResponse = <T>(data: T, pagination?: any) => {
+export const successResponse = <T>(data: T, pagination?: { page: number; limit: number; total: number; totalPages: number }) => {
   return {
     success: true,
     data,

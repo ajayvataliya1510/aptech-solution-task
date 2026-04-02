@@ -1,36 +1,45 @@
 import { useMutation } from '@tanstack/react-query';
 import api from '../services/api';
 import { AuthResponse, ApiResponse } from '../types/api';
-import { useRouter } from 'next/navigation';
+import { useNavigate } from 'react-router-dom';
+import toast from 'react-hot-toast';
 
 export const useLogin = () => {
-  const router = useRouter();
+  const navigate = useNavigate();
 
-  return useMutation({
+  return useMutation<AuthResponse, any, Record<string, string>>({
     mutationFn: async (credentials: Record<string, string>) => {
-      const { data } = await api.post<ApiResponse<AuthResponse>>('/auth/login', credentials);
-      return data.data; // Extracts AuthResponse
+      const response = await api.post('/auth/login', credentials) as ApiResponse<AuthResponse>;
+      return response.data;
     },
     onSuccess: (data) => {
       localStorage.setItem('accessToken', data.accessToken);
       localStorage.setItem('refreshToken', data.refreshToken);
       localStorage.setItem('user', JSON.stringify(data.user));
-      router.push('/dashboard');
+      toast.success('Welcome back, ' + data.user.name + '!');
+      navigate('/dashboard');
     },
+    onError: (error: any) => {
+      toast.error(error.message || 'Login failed');
+    }
   });
 };
 
 export const useRegister = () => {
-  const router = useRouter();
+  const navigate = useNavigate();
 
-  return useMutation({
+  return useMutation<any, any, Record<string, string>>({
     mutationFn: async (credentials: Record<string, string>) => {
-      const { data } = await api.post<ApiResponse<any>>('/auth/register', credentials);
-      return data.data;
+      const response = await api.post('/auth/register', credentials) as ApiResponse<any>;
+      return response.data;
     },
     onSuccess: () => {
-      router.push('/login');
+      toast.success('Registration successful! Please log in.');
+      navigate('/login');
     },
+    onError: (error: any) => {
+      toast.error(error.message || 'Registration failed');
+    }
   });
 };
 
